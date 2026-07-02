@@ -1,5 +1,7 @@
 node_modules/
 outputs/
+!outputs/
+!outputs/.gitkeep
 generated_html/
 generated_html_full/
 *_source_images/
