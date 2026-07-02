@@ -1,0 +1,13 @@
+﻿from pathlib import Path
+p = Path(r'C:\Users\hz-user\Desktop\全自动\gen_heating_stirring_complete.py')
+s = p.read_text(encoding='utf-8')
+s = s.replace("def cn_name(p):\n    return Path(p['file']).stem", "def cn_name(p):\n    return Path(p['file']).stem\n\ndef html_product_name(p):\n    return str(p['title'])")
+s = s.replace("name = cn_name(p)\n    return [", "name = html_product_name(p)\n    return [")
+s = s.replace("f\"{name} is prepared under the Atomfair brand as a research-grade laboratory product while preserving the product category and naming shown in the source manual.\"", "f\"{name} is prepared under the Atomfair brand as a research-grade laboratory product. The product category and technical meaning follow the source manual, while supplier and brand identity are presented as Atomfair.\"")
+s = s.replace("rows.append((f'{base}-{idx:02d}', cn_name(p), key, part))", "rows.append((f'{base}-{idx:02d}', html_product_name(p), key, part))")
+s = s.replace("rows.append((f'{base}-01', cn_name(p), 'Standard configuration', 'Single available configuration based on the source manual data.'))", "rows.append((f'{base}-01', html_product_name(p), 'Standard configuration', 'Single available configuration based on the source manual data.'))")
+s = s.replace("name = cn_name(p)\n    base = base_model(p)", "name = html_product_name(p)\n    base = base_model(p)")
+s = s.replace("<h1 style=\"margin:0;font-size:26px;color:#111111;font-weight:800;text-transform:uppercase;\">ATOMFAIR&reg; {esc(name)}</h1>\n<div style=\"margin-top:8px;font-size:14px;color:#333333;\">Reference English Name: {esc(p['title'])}</div>", "<h1 style=\"margin:0;font-size:26px;color:#111111;font-weight:800;text-transform:uppercase;\">ATOMFAIR&reg; {esc(name)}</h1>\n<div style=\"margin-top:8px;font-size:14px;color:#333333;\">Product Name: {esc(name)}</div>")
+s = s.replace("<strong>Naming Standard:</strong> Product names follow the source manual product name with only supplier or brand identity replaced by Atomfair where required. Atomfair model numbers are assigned separately using a unified order-model rule.", "<strong>Naming Standard:</strong> Product names are presented in English only. Supplier or brand identity is shown as Atomfair where required. Atomfair model numbers are assigned separately using a unified order-model rule.")
+s = s.replace("ok = path.exists() and cn_name(p) in text and 'Unique Atomfair Order Model' in text and base_model(p) in text and 'TAILORED SOLUTIONS FOR RESEARCH' in text", "ok = path.exists() and html_product_name(p) in text and 'Unique Atomfair Order Model' in text and base_model(p) in text and 'TAILORED SOLUTIONS FOR RESEARCH' in text and not re.search(r'[\\u4e00-\\u9fff]', text)")
+p.write_text(s, encoding='utf-8')

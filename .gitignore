@@ -1,0 +1,12 @@
+node_modules/
+outputs/
+generated_html/
+generated_html_full/
+*_source_images/
+*_source_images_crops/
+source_doc_images/
+*.inspect.ndjson
+__pycache__/
+.pytest_cache/
+.DS_Store
+Thumbs.db
