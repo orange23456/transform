@@ -1,8 +1,11 @@
 $ErrorActionPreference = "Stop"
 if (!(Test-Path ".venv")) {
-  py -m venv .venv
+  if (Get-Command py -ErrorAction SilentlyContinue) {
+    py -m venv .venv
+  } else {
+    python -m venv .venv
+  }
 }
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python main.py --input input --output outputs\products.xlsx
-
+$Python = ".\.venv\Scripts\python.exe"
+& $Python -m pip install -r requirements.txt
+& $Python main.py --input input --output outputs\products.xlsx

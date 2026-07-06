@@ -6,12 +6,26 @@ from pathlib import Path
 from typing import Any
 
 from docx import Document
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
 
 HEADERS = [
     "来源", "商品中文名称", "型号", "产品名称（英文）", "URL", "简介", "产品详情", "代码", "网站分类",
     "主图", "详情图", "图片文件名", "alt text", "title", "Caption", "价格", "💲", "是否上传"
+]
+
+SUPPORTED_EXTENSIONS = {".docx", ".txt", ".md", ".csv", ".xlsx"}
+
+FORBIDDEN_MARKETING_PHRASES = [
+    "separate from the family record",
+    "separated from the family record",
+    "separate ordering product",
+    "independent ordering product",
+    "keeps the source product name",
+    "source product name",
+    "unified order model",
+    "uniform order model",
+    "listed separately",
 ]
 
 
@@ -47,8 +61,43 @@ def extract_docx_text(path: Path) -> str:
     return "\n".join(parts)
 
 
+def extract_xlsx_text(path: Path) -> str:
+    workbook = load_workbook(path, read_only=True, data_only=True)
+    parts: list[str] = []
+    for sheet in workbook.worksheets:
+        parts.append(f"\n[SHEET {sheet.title}]")
+        for row in sheet.iter_rows(values_only=True):
+            values = [str(cell).strip() if cell is not None else "" for cell in row]
+            if any(values):
+                parts.append(" | ".join(values))
+    return "\n".join(parts)
+
+
+def extract_plain_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8", errors="ignore")
+
+
+def extract_manual_text(path: Path) -> str:
+    suffix = path.suffix.lower()
+    if suffix == ".docx":
+        return extract_docx_text(path)
+    if suffix == ".xlsx":
+        return extract_xlsx_text(path)
+    if suffix in {".txt", ".md", ".csv"}:
+        return extract_plain_text(path)
+    raise ValueError(f"Unsupported input type: {path}. Supported: {', '.join(sorted(SUPPORTED_EXTENSIONS))}")
+
+
 def cjk_exists(text: str) -> bool:
     return bool(re.search(r"[\u4e00-\u9fff]", text or ""))
+
+
+def has_forbidden_phrase(text: str) -> str | None:
+    lowered = (text or "").lower()
+    for phrase in FORBIDDEN_MARKETING_PHRASES:
+        if phrase in lowered:
+            return phrase
+    return None
 
 
 def safe_json_from_text(text: str) -> list[dict[str, Any]]:
@@ -76,9 +125,15 @@ Strict rules:
 - Keep Chinese product names from the manual in chinese_name.
 - If a source product name contains another manufacturer or brand, replace it with {brand}.
 - Do not invent product names.
-- Every different product specification, capacity, channel count, model, module, accessory or spare part must become a separate item.
-- Preserve all parameters, specifications, dimensions, capacities, ranges, accuracy values, power values, compatible accessories and ordering data.
-- Product overview may be expanded, but only with source-supported facts.
+- Every different product specification, capacity, channel count, volume range, rotor, module, accessory or spare part must become a separate item.
+- If one product family has 8-channel, 12-channel, 16-channel or other channel variants, each channel variant and range is a separate item.
+- Do not summarize multiple ranges into one generic range. Do not borrow ranges, accuracy tables or specifications from another family.
+- Each item may use only the parameter table, ordering table and description that belong to the same source product family or heading.
+- Preserve all parameters, specifications, dimensions, capacities, ranges, increments, accuracy values, precision values, power values, speed ranges, temperature ranges, compatibility data, accessories and ordering data.
+- Accessories are products too. Every listed accessory, adapter, module, electrode, rotor, rack, block, cable or spare part must be represented as its own item when it can be ordered separately.
+- Product Overview must be professionally expanded into 2 to 3 rigorous paragraphs. Mention suitable research or laboratory application scenarios only when supported by the source text and product type.
+- Do not write meta explanations such as "this row is separated", "keeps the source product name", "unified order model" or similar internal workflow language.
+- If a value is not specified in the source, write "Not specified" rather than guessing.
 - source_column must always be an empty string.
 - atomfair_model must be unique and start with {model_prefix}-.
 
@@ -93,7 +148,8 @@ Return a JSON array. Each item must have:
   "features": ["...", "..."],
   "specifications": [{{"parameter":"...", "value":"..."}}],
   "accessories": [{{"name":"...", "reference_code":"", "specification":"...", "compatibility":"..."}}],
-  "ordering_rows": [{{"order_model":"...", "source_model":"...", "key_specification":"...", "application":"..."}}]
+  "ordering_rows": [{{"order_model":"...", "source_model":"...", "key_specification":"...", "application":"..."}}],
+  "source_evidence": ["short source heading/table reference used for this item"]
 }}
 
 Manual text:
@@ -163,6 +219,34 @@ def product_html(item: dict[str, Any], brand: str) -> str:
     return "".join(parts)
 
 
+def validate_items(items: list[dict[str, Any]], model_prefix: str) -> None:
+    seen_models: set[str] = set()
+    required = ["chinese_name", "atomfair_model", "english_name", "category", "product_type", "overview_paragraphs", "features", "specifications"]
+    for index, item in enumerate(items, 1):
+        missing = [field for field in required if not item.get(field)]
+        if missing:
+            raise ValueError(f"Item {index} is missing required fields: {', '.join(missing)}")
+        model = str(item.get("atomfair_model", "")).strip()
+        if not model.startswith(f"{model_prefix}-"):
+            raise ValueError(f"Item {index} model must start with {model_prefix}-: {model}")
+        if model in seen_models:
+            raise ValueError(f"Duplicate model generated: {model}")
+        seen_models.add(model)
+
+        english_text = "\n".join([
+            str(item.get("english_name", "")),
+            str(item.get("category", "")),
+            str(item.get("product_type", "")),
+            "\n".join(map(str, item.get("overview_paragraphs") or [])),
+            "\n".join(map(str, item.get("features") or [])),
+        ])
+        if cjk_exists(english_text):
+            raise ValueError(f"English fields contain Chinese characters for model {model}")
+        forbidden = has_forbidden_phrase(english_text)
+        if forbidden:
+            raise ValueError(f"Forbidden workflow phrase found for model {model}: {forbidden}")
+
+
 def make_records(items: list[dict[str, Any]], brand: str) -> list[dict[str, str]]:
     records = []
     for item in items:
@@ -180,6 +264,11 @@ def make_records(items: list[dict[str, Any]], brand: str) -> list[dict[str, str]
             "代码": code,
             "网站分类": item.get("category", ""),
         })
+        if any(cjk_exists(str(row.get(header, ""))) for header in ["产品名称（英文）", "简介", "代码", "网站分类"]):
+            raise ValueError(f"English upload fields contain Chinese characters for model {item.get('atomfair_model')}")
+        forbidden = has_forbidden_phrase(row["简介"]) or has_forbidden_phrase(row["代码"])
+        if forbidden:
+            raise ValueError(f"Forbidden workflow phrase found in upload fields for model {item.get('atomfair_model')}: {forbidden}")
         records.append(row)
     return records
 
@@ -214,7 +303,7 @@ def write_excel(records: list[dict[str, str]], output_path: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate full-English product HTML and Excel from product manuals.")
-    parser.add_argument("--input", "-i", default="input", help="DOCX file or folder containing DOCX files.")
+    parser.add_argument("--input", "-i", default="input", help="Manual file or folder. Supports .docx, .xlsx, .txt, .md and .csv.")
     parser.add_argument("--output", "-o", default="outputs/products.xlsx", help="Output XLSX path.")
     parser.add_argument("--records", default="outputs/products_records.json", help="Output JSON records path.")
     parser.add_argument("--brand", default=os.environ.get("BRAND_NAME", "Atomfair"), help="Brand name used in generated HTML.")
@@ -225,7 +314,7 @@ def main() -> None:
     read_env_file(Path(".env"))
     input_path = Path(args.input)
     if input_path.is_dir():
-        docx_files = sorted(p for p in input_path.glob("*.docx") if not p.name.startswith("~$"))
+        docx_files = sorted(p for p in input_path.iterdir() if p.suffix.lower() in SUPPORTED_EXTENSIONS and not p.name.startswith("~$"))
     else:
         docx_files = [input_path]
     if not docx_files:
@@ -233,7 +322,7 @@ def main() -> None:
 
     all_items: list[dict[str, Any]] = []
     for docx_file in docx_files:
-        source_text = extract_docx_text(docx_file)
+        source_text = extract_manual_text(docx_file)
         if not source_text.strip():
             raise SystemExit(f"No readable text or tables found in {docx_file}")
         prompt = build_prompt(source_text, args.brand, args.model_prefix)
@@ -241,6 +330,7 @@ def main() -> None:
         items = safe_json_from_text(ai_text)
         all_items.extend(items)
 
+    validate_items(all_items, args.model_prefix)
     records = make_records(all_items, args.brand)
     records_path = Path(args.records)
     records_path.parent.mkdir(parents=True, exist_ok=True)
@@ -258,4 +348,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

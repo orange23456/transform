@@ -1,19 +1,32 @@
 # Product Manual to HTML and Excel Generator
 
-This project converts product manuals into full-English product HTML and an Excel upload sheet.
+This repository turns laboratory product manuals into upload-ready Excel sheets. The workflow is:
 
-## What It Does
+1. Read the supplied product report or manual.
+2. Extract every product, specification, ordering model and accessory.
+3. Generate full-English ecommerce HTML for each row.
+4. Export an Excel file with the required upload columns.
 
-- Reads `.docx` product manuals from the `input/` folder.
-- Uses an OpenAI model to identify products, specifications, models, accessories and ordering rows.
-- Generates full-English HTML for each product.
-- Exports an Excel file with the required upload columns.
-- Keeps the `来源` column blank.
-- Gives every product specification and accessory a separate unique model.
+The current generic runner supports `.docx`, `.xlsx`, `.txt`, `.md` and `.csv` input files.
+
+## Required Standard
+
+- The Excel `来源` column must stay blank.
+- HTML must be English only. Chinese text is allowed only in `商品中文名称`.
+- Product names must follow the source manual. If the source name contains another manufacturer's brand, replace that brand with `Atomfair`.
+- Do not invent product names, ranges, parameters, dimensions or applications.
+- Do not borrow range tables or specification tables from another product family.
+- Each product family must use only its own source tables and source description.
+- Different specifications must be split into separate rows, including capacity, volume range, channel count, temperature range, rotor, block, module and configuration differences.
+- 8-channel, 12-channel, 16-channel and other multichannel variants must not be missed or merged.
+- Every separately orderable accessory, adapter, module, electrode, rotor, rack, block, cable or spare part must be included.
+- Product Overview should be detailed and professional, with supported application scenarios when appropriate.
+- Product Overview must not contain internal workflow language such as "listed separately", "unified order model" or "keeps the source product name".
+- The bottom contact section of the HTML uses the Atomfair template and `inquiry@atomfair.com`.
 
 ## Quick Start
 
-1. Download this repository from GitHub.
+1. Download or clone this repository.
 2. Install Python 3.10 or newer.
 3. Copy `.env.example` to `.env`.
 4. Fill in your OpenAI API key:
@@ -23,67 +36,69 @@ OPENAI_API_KEY=sk-your-key-here
 ```
 
 5. Put product manuals into the `input/` folder.
-6. Double-click `run.bat`, or run:
+6. Run `run.bat`, `run.ps1`, or the command below:
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\activate
-python -m pip install -r requirements.txt
-python main.py --input input --output outputs\products.xlsx
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe main.py --input input --output outputs\products.xlsx
 ```
 
-The generated Excel file will be saved to:
+The generated files will be saved to:
 
 ```text
 outputs/products.xlsx
+outputs/products_records.json
 ```
 
-## Manual Command
+## Process One File
 
 ```powershell
-python main.py --input input --output outputs\products.xlsx
+.\.venv\Scripts\python.exe main.py --input "C:\path\to\manual.docx" --output outputs\manual_products.xlsx
 ```
 
-You can also process one file:
+## Configuration
+
+Use `.env` or command-line options:
+
+```text
+OPENAI_API_KEY=sk-your-key-here
+OPENAI_MODEL=gpt-4.1-mini
+BRAND_NAME=Atomfair
+MODEL_PREFIX=AF
+```
+
+Command-line example:
 
 ```powershell
-python main.py --input "C:\path\to\manual.docx" --output outputs\manual_products.xlsx
+.\.venv\Scripts\python.exe main.py --input input --output outputs\products.xlsx --brand Atomfair --model-prefix AF --model gpt-4.1-mini
 ```
 
-## Standard Rules
+## Built-In Validation
 
-- HTML must be English only.
-- Product names follow the source manual.
-- Original manufacturer or brand names are replaced with Atomfair.
-- Each different specification, configuration, channel count, capacity and accessory must become a separate row.
-- Product Overview can be expanded, but it must stay source-supported and rigorous.
-- All parameters, specifications, dimensions, accessories and compatibility information should be preserved.
-- The Excel `来源` column stays blank.
+The runner stops with an error if it detects:
 
-## Important Limitation
+- Chinese characters in generated HTML or English upload fields.
+- Duplicate generated models.
+- Missing required product fields.
+- Generated models that do not start with the configured prefix.
+- Internal workflow phrases in Product Overview or HTML.
 
-This generic version needs an OpenAI API key. Without AI, a program cannot reliably understand arbitrary new manuals, translate Chinese content into English, identify product/accessory boundaries and generate complete ecommerce HTML.
+This validation does not replace manual review. Before upload, open the Excel and compare the generated rows against the source manual, especially range tables, specification tables and accessory lists.
 
-The older series-specific scripts are still included in this repository for previously generated product families.
+## Repository Files
 
-## Main Files
-
-- `main.py`: generic entry point for new manuals.
+- `main.py`: generic product-manual-to-Excel runner.
+- `AGENTS.md`: Codex operating instructions for this workflow.
 - `requirements.txt`: Python dependencies.
 - `run.bat`: Windows one-click runner.
 - `run.ps1`: PowerShell runner.
-- `build_excel_from_html.mjs`: older Codex-specific Excel builder.
-- `build_*_full.py`: historical series-specific generators.
+- `input/`: place manuals here.
+- `outputs/`: generated Excel and JSON files.
+- `build_*`, `verify_*`, `*_records.json`: historical series-specific scripts and records from earlier product batches.
 
-## Download
+## Clone
 
 ```powershell
-git clone https://github.com/orange23456/-Excel.git
+git clone https://github.com/orange23456/transform.git
 ```
-
-Or use GitHub:
-
-```text
-Code -> Download ZIP
-```
-
