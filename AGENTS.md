@@ -1,13 +1,13 @@
 # Codex Instructions
 
-This project converts laboratory product reports and manuals into upload-ready Excel files. Follow these instructions whenever the user supplies a new product report, catalog, manual, spreadsheet or product source file.
+This project converts laboratory product reports, manuals and source spreadsheets into upload-ready Excel files. Follow this workflow whenever a user supplies a new product report, catalog, manual, spreadsheet or product source file.
 
 ## Required Workflow
 
 1. Read the source manual carefully before generating records.
 2. Extract every product, product family, variant, specification, ordering row, module, accessory, consumable and spare part.
 3. Generate full-English product HTML using the fixed Atomfair/Pipetting Series template style.
-4. Export the upload Excel sheet with the fixed column order.
+4. Export the upload Excel sheet with the fixed column order and the approved Pipetting Series-style formatting.
 5. Validate the output against the source manual before reporting completion.
 
 ## Non-Negotiable Content Rules
@@ -26,21 +26,23 @@ This project converts laboratory product reports and manuals into upload-ready E
 - 8-channel, 12-channel, 16-channel and all other multichannel pipette variants must be preserved and split.
 - Accessories and spare parts must not be omitted. Separately orderable accessories must become rows.
 - Product Overview must be detailed, professional and source-supported. It may mention application scenarios only when they fit the product and source evidence.
-- Product Overview must not include internal workflow language such as `listed separately`, `unified order model`, `source product name`, `this row is separated`, `independent ordering product` or similar phrases.
+- Product Overview must not include internal workflow language such as `listed separately`, `separate upload row`, `unified order model`, `source product name`, `this row is separated`, `independent ordering product`, `saved as a separate row` or similar phrases.
+- Do not write phrases implying that accessories or data are saved as separate upload rows. The product page already represents the complete data for that row.
 
-## Fixed HTML Style Rules
+## Fixed HTML Template Rules
 
 - Match the existing Atomfair/Pipetting Series HTML style.
 - Use full-English HTML only.
 - Use inline styles, Arial/Helvetica font, black section accents, black table headers, left-aligned cells and full-width tables.
+- Keep the `h1` style at `font-size:26px` and the main wrapper/table structure consistent.
 - Keep section names consistent: `Product Overview`, `Key Features and Advantages`, `Technical Specifications`, accessory/configuration sections and ordering/configuration table sections.
 - Do not switch to another HTML template, CSS class system or visible Chinese text.
 - Keep the same bottom contact block and include `inquiry@atomfair.com`.
 - Generated HTML must be visually consistent across batches: same structure, font behavior, table style, capitalization, alignment and footer.
 
-## Excel Output Rules
+## Fixed Excel Output Rules
 
-Use the fixed upload columns:
+Use the fixed upload columns, in this exact order:
 
 ```text
 来源
@@ -65,6 +67,13 @@ Caption
 
 The `代码` column contains the complete product HTML. The `简介` column contains professional English summary copy. Leave image and upload-control columns blank unless the user explicitly provides image assets and asks for image processing.
 
+Excel formatting must match the approved Pipetting Series style:
+
+- Use the same column widths, row heights, wrap settings, borders, fills and table object behavior as the Pipetting Series reference when a reference workbook is provided.
+- If no reference workbook is provided, use the built-in light-blue banded upload-table style.
+- Do not randomly switch to a dark header, plain white table or another color system.
+- When the user points to a reference workbook, copy styles from the `Pipetting Series` sheet.
+
 ## Running The Generic Pipeline
 
 ```powershell
@@ -77,7 +86,13 @@ For one file:
 .\.venv\Scripts\python.exe main.py --input "C:\path\to\manual.docx" --output outputs\manual_products.xlsx
 ```
 
-The generic runner supports `.docx`, `.xlsx`, `.txt`, `.md` and `.csv`. If the manual is image-only or the extraction misses visual tables, use Codex visual/OCR review and manual verification rather than guessing.
+To copy Excel style from a known-good workbook:
+
+```powershell
+.\.venv\Scripts\python.exe main.py --input "C:\path\to\manual.docx" --output outputs\manual_products.xlsx --style-reference "C:\path\to\大龙产品可上架版last.xlsx" --style-sheet "Pipetting Series"
+```
+
+The generic runner supports `.docx`, `.xlsx`, `.txt`, `.md` and `.csv`. If the manual is image-only or extraction misses visual tables, use Codex visual/OCR review and manual verification rather than guessing.
 
 ## Verification Checklist
 
@@ -91,3 +106,4 @@ Before final delivery, check:
 - All product parameters, specifications, dimensions, ranges and accessories from the source are represented.
 - Product Overview is professional product copy, not process commentary.
 - HTML formatting matches the fixed Atomfair/Pipetting Series style, including black table headers, left alignment, consistent font and the bottom `inquiry@atomfair.com` contact block.
+- Excel formatting matches the approved Pipetting Series-style upload workbook.
