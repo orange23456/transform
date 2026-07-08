@@ -21,6 +21,14 @@ This project converts laboratory product reports, manuals and source spreadsheet
 - Excel `产品名称（英文）` must not be prefixed with `ATOMFAIR®`.
 - Put `Atomfair Model` inside the `Technical Specifications` table, not as a separate line below the HTML title.
 - The `Atomfair Model` row must use the same table-cell font style as other specification rows; do not make it bold, larger or visually separated.
+- Use the micro symbol `µL` in customer-facing product names, summaries and HTML; do not use `uL` or `UL` except inside fixed order/model codes.
+- Use `°C` and `±` in customer-facing temperature and tolerance values; do not use bare `C`, `deg C` or `+/-` in summaries or HTML.
+- Preserve source product casing such as `HiPette-LTS`; do not force HTML product titles to all caps.
+- Use professional sterilization wording such as `Fully autoclavable` or source-supported cycle details. Do not write vague phrasing such as `Full high-temperature sterilization supported`.
+- Use `Product Family`, not `Source Product Family`, in customer-facing technical or ordering tables.
+- When accuracy, precision, systematic error or random error values correspond to multiple test volumes, pair every value with its exact test volume. Do not rely on list order alone.
+- If a page represents one single specification row, omit the `Atomfair Product Ordering and Configuration Table` because it duplicates `Technical Specifications`. Keep ordering/comparison tables only when the page truly compares multiple configurations.
+- Avoid repeating the same application scenario, selection guidance or parameter list across `Product Overview`, `Key Features and Advantages`, and note blocks.
 - Backend categories, tags and HTML source must describe only the product shown on that page. Do not include unrelated category or product terms, such as battery materials, centrifugation, distillation/evaporation, electrophoresis, spectrophotometry, electrochemistry, heating/stirring, mixing/shaking or other cross-category wording, unless the current source product is actually that product.
 - If the source product name or description contains the original manufacturer name, replace that manufacturer name with Atomfair or ATOMFAIR as appropriate.
 - Do not invent product families, model meanings, volume ranges, temperature ranges, capacity ranges, dimensions, specifications, applications or compatibility.

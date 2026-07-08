@@ -148,7 +148,84 @@ def forbidden_phrase(text: str) -> str | None:
 def clean_product_display_name(value: Any) -> str:
     text = str(value or "")
     text = re.sub(r"^\s*ATOMFAIR(?:®|Â®|Ã‚Â®|&reg;)?\s*", "", text, flags=re.I)
-    return re.sub(r"\s+", " ", text).strip()
+    return normalize_scientific_text(re.sub(r"\s+", " ", text).strip())
+
+
+def normalize_scientific_text(value: Any) -> str:
+    text = str(value or "")
+    text = re.sub(r"\buL\b", "µL", text)
+    text = re.sub(r"\bUL\b", "µL", text)
+    text = text.replace("+/-", "±")
+    text = re.sub(r"\bdeg\s*C\b", "°C", text, flags=re.I)
+    text = re.sub(r"(?<=\d)\s*C\b", " °C", text)
+    text = re.sub(r"(?<=\d)\s*℃\b", " °C", text)
+    text = text.replace("Full high-temperature sterilization supported", "Fully autoclavable")
+    text = text.replace("full high-temperature sterilization supported", "fully autoclavable")
+    text = text.replace("Full autoclavable", "Fully autoclavable")
+    text = text.replace("full autoclavable", "fully autoclavable")
+    text = text.replace("Source product family", "Product Family")
+    text = text.replace("Source Product Family", "Product Family")
+    text = text.replace("source product family", "product family")
+    text = text.replace("Source Model / Item", "Reference Model / Item")
+    return text
+
+
+def normalize_spec_value(spec: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "parameter": normalize_scientific_text(spec.get("parameter", "")),
+        "value": normalize_scientific_text(spec.get("value", "")),
+    }
+
+
+def split_test_volume_values(value: str) -> list[str]:
+    text = normalize_scientific_text(value)
+    parts = [part.strip() for part in re.split(r"\s*/\s*|;\s*", text) if part.strip()]
+    volumes: list[str] = []
+    for part in parts:
+        if not re.search(r"\bµL\b", part):
+            part = f"{part} µL"
+        volumes.append(part)
+    return volumes
+
+
+def format_measurement_value(value: str) -> str:
+    text = normalize_scientific_text(value.strip()).replace("+/-", "±")
+    text = re.sub(r"^(systematic error|random error|accuracy|precision|inaccuracy|imprecision)\s*:\s*", "", text, flags=re.I)
+    text = re.sub(r"(±[\d.]+\s*µL)\s+(±[\d.]+%)", r"\1 (\2)", text)
+    return text
+
+
+def pair_measurement_with_test_volumes(test_volumes: str, value: str) -> str:
+    volumes = split_test_volume_values(test_volumes)
+    text = normalize_scientific_text(value).replace("+/-", "±")
+    text = re.sub(r"^(systematic error|random error|accuracy|precision|inaccuracy|imprecision)\s*:\s*", "", text.strip(), flags=re.I)
+    parts = [format_measurement_value(part) for part in text.split(";") if part.strip()]
+    if not volumes or len(volumes) != len(parts):
+        return normalize_scientific_text(value)
+    paired = []
+    for index, (volume, part) in enumerate(zip(volumes, parts)):
+        prefix = "At" if index == 0 else "at"
+        paired.append(f"{prefix} {volume}: {part}")
+    return "; ".join(paired)
+
+
+def pair_measurement_specs(specs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    test_volumes = ""
+    for spec in specs:
+        if str(spec.get("parameter", "")).strip().lower() in {"test volume(s)", "test volume", "test vol.", "test vol. (µl)"}:
+            test_volumes = str(spec.get("value", ""))
+            break
+    if not test_volumes:
+        return specs
+    paired: list[dict[str, Any]] = []
+    for spec in specs:
+        parameter = str(spec.get("parameter", "")).strip()
+        lower = parameter.lower()
+        value = str(spec.get("value", ""))
+        if any(term in lower for term in ["systematic error", "random error", "accuracy", "precision", "inaccuracy", "imprecision"]):
+            spec = {"parameter": parameter, "value": pair_measurement_with_test_volumes(test_volumes, value)}
+        paired.append(spec)
+    return paired
 
 
 def specs_with_atomfair_model(specs: list[dict[str, Any]], model: str) -> list[dict[str, Any]]:
@@ -160,10 +237,10 @@ def specs_with_atomfair_model(specs: list[dict[str, Any]], model: str) -> list[d
             cleaned.append({"parameter": "Atomfair Model", "value": model})
             has_model = True
         else:
-            cleaned.append(spec)
+            cleaned.append(normalize_spec_value(spec))
     if not has_model:
         cleaned.insert(0, {"parameter": "Atomfair Model", "value": model})
-    return cleaned
+    return pair_measurement_specs(cleaned)
 
 
 def safe_json_from_text(text: str) -> list[dict[str, Any]]:
@@ -202,6 +279,12 @@ Non-negotiable rules:
 - Backend category, tags and HTML source must only describe the current product page. Do not include unrelated product-family terms such as battery materials, cathode/anode materials, precursors, coin cells, pouch cells or energy-storage products unless the current source product is actually that product.
 - Do not prefix english_name with ATOMFAIR, ATOMFAIR® or Atomfair. Keep brand identity in supplier/footer areas only.
 - Put the Atomfair model in the Technical Specifications table as "Atomfair Model". Do not show "Atomfair Model" below the HTML title.
+- Use the micro symbol `µL` for microliter units in product names, summaries and HTML. Do not write `uL` or `UL` in customer-facing text.
+- Use professional sterilization wording such as "Fully autoclavable" or the source-supported cycle details. Do not write "Full high-temperature sterilization supported".
+- Preserve source product casing such as HiPette-LTS. Do not force product names or HTML titles to all caps.
+- Use "Product Family" instead of "Source Product Family" in customer-facing tables.
+- ordering_rows is only for pages that truly compare multiple configurations in one HTML page. If the page represents a single specification, leave ordering_rows empty so the ordering table is not duplicated below Technical Specifications.
+- Avoid repeating the same application sentence, selection guidance or parameter list across Product Overview, Key Features and Selection Note.
 - If the source does not specify a value, write "Not specified" instead of guessing.
 - source_column, upload_flag, alt_text, title and caption must always be empty strings.
 - atomfair_model must be unique and start with {model_prefix}-.
@@ -277,8 +360,8 @@ def html_section(title: str, body: str) -> str:
 
 
 def product_html(item: dict[str, Any], brand: str) -> str:
-    overview = item.get("overview_paragraphs") or []
-    features = item.get("features") or []
+    overview = [normalize_scientific_text(text) for text in (item.get("overview_paragraphs") or [])]
+    features = [normalize_scientific_text(text) for text in (item.get("features") or [])]
     english_name = clean_product_display_name(item.get("english_name"))
     model = str(item.get("atomfair_model", "")).strip()
     specs = specs_with_atomfair_model(item.get("specifications") or [], model)
@@ -304,7 +387,7 @@ def product_html(item: dict[str, Any], brand: str) -> str:
         '<div style="width:100%;background:#ffffff;padding:0;" align="center">',
         '<table style="width:100%;font-family:Arial,Helvetica,sans-serif;color:#333;line-height:1.58;background:#fff;" border="0" width="100%" cellspacing="0" cellpadding="0"><tbody>',
         '<tr><td style="padding:38px 20px;border-bottom:4px solid #111;">',
-        f'<h1 style="margin:0;font-size:26px;color:#111;font-weight:800;text-transform:uppercase;">{html_escape(english_name)}</h1>',
+        f'<h1 style="margin:0;font-size:26px;color:#111;font-weight:800;">{html_escape(english_name)}</h1>',
         f'<div style="margin-top:8px;font-size:14px;color:#333;">Product Type: {html_escape(item.get("product_type"))}</div>',
         '<div style="margin-top:15px;display:inline-block;background:#111;color:#fff;padding:6px 15px;font-size:13px;font-weight:bold;letter-spacing:.6px;text-transform:uppercase;">Research-grade laboratory product</div>',
         '</td></tr><tr><td style="padding:38px 20px;">',
@@ -322,15 +405,15 @@ def product_html(item: dict[str, Any], brand: str) -> str:
                         [
                             accessory.get("name", ""),
                             accessory.get("reference_code", ""),
-                            accessory.get("specification", ""),
-                            accessory.get("compatibility", ""),
+                            normalize_scientific_text(accessory.get("specification", "")),
+                            normalize_scientific_text(accessory.get("compatibility", "")),
                         ]
                         for accessory in accessories
                     ],
                 ),
             )
         )
-    if ordering:
+    if len(ordering) > 1:
         parts.append(
             html_section(
                 "Atomfair Product Ordering and Configuration Table",
@@ -339,9 +422,9 @@ def product_html(item: dict[str, Any], brand: str) -> str:
                     [
                         [
                             row.get("order_model", ""),
-                            row.get("source_model", ""),
-                            row.get("key_specification", ""),
-                            row.get("application", ""),
+                            normalize_scientific_text(row.get("source_model", "")),
+                            normalize_scientific_text(row.get("key_specification", "")),
+                            normalize_scientific_text(row.get("application", "")),
                         ]
                         for row in ordering
                     ],
@@ -422,10 +505,10 @@ def make_records(items: list[dict[str, Any]], brand: str) -> list[dict[str, str]
         row = {header: "" for header in HEADERS}
         row.update(
             {
-                "商品中文名称": str(item.get("chinese_name", "")),
+                "商品中文名称": normalize_scientific_text(item.get("chinese_name", "")),
                 "型号": str(item.get("atomfair_model", "")),
                 "产品名称（英文）": clean_product_display_name(item.get("english_name", "")),
-                "简介": " ".join(map(str, item.get("overview_paragraphs") or [])),
+                "简介": normalize_scientific_text(" ".join(map(str, item.get("overview_paragraphs") or []))),
                 "代码": code,
                 "网站分类": str(item.get("category", "")),
             }
