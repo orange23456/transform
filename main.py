@@ -54,6 +54,27 @@ FORBIDDEN_PHRASES = [
     "uploaded as a separate",
     "saved as a separate",
 ]
+FORBIDDEN_PRODUCT_CONTAMINATION = [
+    "battery",
+    "batteries",
+    "cathode",
+    "anode",
+    "precursor",
+    "coin cell",
+    "pouch cell",
+    "energy storage",
+    "solid-state battery",
+    "battery materials",
+    "cathode materials",
+    "anode materials",
+    "电池",
+    "正极",
+    "负极",
+    "前驱体",
+    "扣式",
+    "软包",
+    "储能",
+]
 
 
 def html_escape(value: Any) -> str:
@@ -118,10 +139,31 @@ def cjk_exists(text: str) -> bool:
 
 def forbidden_phrase(text: str) -> str | None:
     lowered = (text or "").lower()
-    for phrase in FORBIDDEN_PHRASES:
+    for phrase in FORBIDDEN_PHRASES + FORBIDDEN_PRODUCT_CONTAMINATION:
         if phrase in lowered:
             return phrase
     return None
+
+
+def clean_product_display_name(value: Any) -> str:
+    text = str(value or "")
+    text = re.sub(r"^\s*ATOMFAIR(?:®|Â®|Ã‚Â®|&reg;)?\s*", "", text, flags=re.I)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def specs_with_atomfair_model(specs: list[dict[str, Any]], model: str) -> list[dict[str, Any]]:
+    cleaned: list[dict[str, Any]] = []
+    has_model = False
+    for spec in specs or []:
+        parameter = str(spec.get("parameter", "")).strip()
+        if parameter.lower() == "atomfair model":
+            cleaned.append({"parameter": "Atomfair Model", "value": model})
+            has_model = True
+        else:
+            cleaned.append(spec)
+    if not has_model:
+        cleaned.insert(0, {"parameter": "Atomfair Model", "value": model})
+    return cleaned
 
 
 def safe_json_from_text(text: str) -> list[dict[str, Any]]:
@@ -157,6 +199,9 @@ Non-negotiable rules:
 - Accessories, spare parts, modules, electrodes, adapters, cables and consumables are products too; include every separately orderable item.
 - Product Overview must be professional, detailed and source-supported. It may mention suitable laboratory or research applications when they fit the product and source evidence.
 - Product Overview and HTML must describe the product page as complete data. Never mention internal workflow language such as "listed separately", "separate upload row", "unified order model", "source product name", "this row is separated", "independent ordering product", or similar phrasing.
+- Backend category, tags and HTML source must only describe the current product page. Do not include unrelated product-family terms such as battery materials, cathode/anode materials, precursors, coin cells, pouch cells or energy-storage products unless the current source product is actually that product.
+- Do not prefix english_name with ATOMFAIR, ATOMFAIR® or Atomfair. Keep brand identity in supplier/footer areas only.
+- Put the Atomfair model in the Technical Specifications table as "Atomfair Model". Do not show "Atomfair Model" below the HTML title.
 - If the source does not specify a value, write "Not specified" instead of guessing.
 - source_column, upload_flag, alt_text, title and caption must always be empty strings.
 - atomfair_model must be unique and start with {model_prefix}-.
@@ -210,10 +255,9 @@ def html_table(headers: list[str], rows: list[list[str]]) -> str:
     body_rows: list[str] = []
     for row in rows:
         cells = []
-        for index, cell in enumerate(row):
-            weight = "font-weight:700;" if index == 0 else ""
+        for cell in row:
             cells.append(
-                f'<td style="border:1px solid #d7d7d7;padding:10px 12px;{weight}vertical-align:top;text-align:left;">{html_escape(cell)}</td>'
+                f'<td style="border:1px solid #d7d7d7;padding:10px 12px;vertical-align:top;text-align:left;">{html_escape(cell)}</td>'
             )
         body_rows.append("<tr>" + "".join(cells) + "</tr>")
     return (
@@ -235,7 +279,9 @@ def html_section(title: str, body: str) -> str:
 def product_html(item: dict[str, Any], brand: str) -> str:
     overview = item.get("overview_paragraphs") or []
     features = item.get("features") or []
-    specs = item.get("specifications") or []
+    english_name = clean_product_display_name(item.get("english_name"))
+    model = str(item.get("atomfair_model", "")).strip()
+    specs = specs_with_atomfair_model(item.get("specifications") or [], model)
     accessories = item.get("accessories") or []
     ordering = item.get("ordering_rows") or []
 
@@ -258,9 +304,8 @@ def product_html(item: dict[str, Any], brand: str) -> str:
         '<div style="width:100%;background:#ffffff;padding:0;" align="center">',
         '<table style="width:100%;font-family:Arial,Helvetica,sans-serif;color:#333;line-height:1.58;background:#fff;" border="0" width="100%" cellspacing="0" cellpadding="0"><tbody>',
         '<tr><td style="padding:38px 20px;border-bottom:4px solid #111;">',
-        f'<h1 style="margin:0;font-size:26px;color:#111;font-weight:800;text-transform:uppercase;">{html_escape(item.get("english_name"))}</h1>',
+        f'<h1 style="margin:0;font-size:26px;color:#111;font-weight:800;text-transform:uppercase;">{html_escape(english_name)}</h1>',
         f'<div style="margin-top:8px;font-size:14px;color:#333;">Product Type: {html_escape(item.get("product_type"))}</div>',
-        f'<div class="model" style="margin-top:10px;font-size:15px;color:#333;font-weight:700;">Atomfair Model: {html_escape(item.get("atomfair_model"))}</div>',
         '<div style="margin-top:15px;display:inline-block;background:#111;color:#fff;padding:6px 15px;font-size:13px;font-weight:bold;letter-spacing:.6px;text-transform:uppercase;">Research-grade laboratory product</div>',
         '</td></tr><tr><td style="padding:38px 20px;">',
         html_section("Product Overview", overview_html),
@@ -349,7 +394,7 @@ def validate_items(items: list[dict[str, Any]], model_prefix: str) -> None:
         seen_models.add(model)
         english_text = "\n".join(
             [
-                str(item.get("english_name", "")),
+                clean_product_display_name(item.get("english_name", "")),
                 str(item.get("category", "")),
                 str(item.get("product_type", "")),
                 "\n".join(map(str, item.get("overview_paragraphs") or [])),
@@ -366,6 +411,7 @@ def validate_items(items: list[dict[str, Any]], model_prefix: str) -> None:
 def make_records(items: list[dict[str, Any]], brand: str) -> list[dict[str, str]]:
     records: list[dict[str, str]] = []
     for item in items:
+        item["english_name"] = clean_product_display_name(item.get("english_name"))
         code = product_html(item, brand)
         if cjk_exists(code):
             raise ValueError(f"HTML contains Chinese characters for model {item.get('atomfair_model')}.")
@@ -378,7 +424,7 @@ def make_records(items: list[dict[str, Any]], brand: str) -> list[dict[str, str]
             {
                 "商品中文名称": str(item.get("chinese_name", "")),
                 "型号": str(item.get("atomfair_model", "")),
-                "产品名称（英文）": str(item.get("english_name", "")),
+                "产品名称（英文）": clean_product_display_name(item.get("english_name", "")),
                 "简介": " ".join(map(str, item.get("overview_paragraphs") or [])),
                 "代码": code,
                 "网站分类": str(item.get("category", "")),

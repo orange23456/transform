@@ -17,6 +17,11 @@ This project converts laboratory product reports, manuals and source spreadsheet
 - Keep the Excel `alt text`, `title` and `Caption` columns blank.
 - HTML must contain no Chinese characters.
 - Product names must follow the source manual. Do not invent product names.
+- HTML page titles must not be prefixed with `ATOMFAIR®`; show the product name only.
+- Excel `产品名称（英文）` must not be prefixed with `ATOMFAIR®`.
+- Put `Atomfair Model` inside the `Technical Specifications` table, not as a separate line below the HTML title.
+- The `Atomfair Model` row must use the same table-cell font style as other specification rows; do not make it bold, larger or visually separated.
+- Backend categories, tags and HTML source must describe only the product shown on that page. Do not include unrelated category or product terms, such as battery materials, centrifugation, distillation/evaporation, electrophoresis, spectrophotometry, electrochemistry, heating/stirring, mixing/shaking or other cross-category wording, unless the current source product is actually that product.
 - If the source product name or description contains the original manufacturer name, replace that manufacturer name with Atomfair or ATOMFAIR as appropriate.
 - Do not invent product families, model meanings, volume ranges, temperature ranges, capacity ranges, dimensions, specifications, applications or compatibility.
 - Do not manually generalize volume ranges, temperature ranges, capacities, speed ranges, accuracy tables or precision tables.

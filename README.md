@@ -1,30 +1,32 @@
 # Product Manual to Upload-Ready Excel
 
-This repository turns laboratory product manuals, reports, catalogs and source spreadsheets into upload-ready Excel files.
+This repository converts laboratory product manuals, catalogs, reports and source spreadsheets into upload-ready Excel files with Atomfair product HTML.
 
-It follows the same workflow used in the Codex conversation:
+## What The Workflow Does
 
-1. Read the source product manual.
-2. Extract every product, specification, variant, module, accessory and spare part.
-3. Generate full-English Atomfair product HTML.
-4. Export an upload-ready Excel sheet.
-5. Validate blank columns, English-only HTML, unique models and complete product splitting.
+1. Read the source manual carefully.
+2. Extract every product, product family, variant, specification, ordering row, module, accessory, consumable and spare part.
+3. Split different specifications, capacities, ranges, channel counts, rotors, blocks, modules and configurations into separate product rows.
+4. Generate full-English product HTML using the fixed Atomfair/Pipetting Series template style.
+5. Export the upload Excel sheet in the fixed column order and approved blue-banded format.
+6. Validate the output before delivery.
 
-## What This Project Enforces
+## Required Output Rules
 
 - `来源` stays blank.
 - `是否上传` stays blank.
 - `alt text`, `title` and `Caption` stay blank.
-- HTML contains no Chinese characters.
-- Product names follow the source manual.
-- Original manufacturer names are replaced with Atomfair when they appear.
-- Different specifications become different rows with unique Atomfair models.
-- Accessories, electrodes, rotors, adapters, cables, modules, spare parts and consumables are not omitted.
-- 8-channel, 12-channel, 16-channel and other multichannel variants are preserved.
-- Product Overview is professional product copy, not internal workflow commentary.
-- HTML must not include phrases such as `listed separately`, `separate upload row`, `source product name`, `unified order model` or similar.
-- HTML uses the fixed Atomfair/Pipetting Series-style template.
-- Excel uses the approved Pipetting Series-style upload format.
+- HTML must contain no Chinese characters.
+- Product names must follow the source manual. Do not invent product names.
+- Original manufacturer names are replaced with Atomfair or ATOMFAIR when they appear.
+- HTML page titles must not be prefixed with `ATOMFAIR®`; show the product name only.
+- Excel `产品名称（英文）` must not be prefixed with `ATOMFAIR®`.
+- `Atomfair Model` must appear inside the `Technical Specifications` table.
+- The `Atomfair Model` row must use the same table-cell font style as other specification rows.
+- Backend categories, tags and HTML source must only describe the product shown on that page. Do not include unrelated product-family terms.
+- Accessories, spare parts, modules, electrodes, adapters, cables and consumables are products too and must not be omitted.
+- Product Overview must be detailed, professional and source-supported.
+- Product Overview and HTML must not include internal workflow language such as `listed separately`, `separate upload row`, `source product name`, `unified order model` or similar phrases.
 
 ## Install
 
@@ -58,7 +60,7 @@ For one file:
 .\.venv\Scripts\python.exe main.py --input "C:\path\to\manual.docx" --output outputs\manual_products.xlsx
 ```
 
-You can also use:
+You can also run:
 
 ```powershell
 .\run.ps1
@@ -70,7 +72,7 @@ or double-click:
 run.bat
 ```
 
-Supported input types: `.docx`, `.xlsx`, `.txt`, `.md`, `.csv`.
+Supported input types: `.docx`, `.xlsx`, `.txt`, `.md` and `.csv`.
 
 ## Match The Pipetting Series Excel Format
 
@@ -80,11 +82,11 @@ If you have a known-good workbook, pass it as a style reference:
 .\.venv\Scripts\python.exe main.py `
   --input "C:\path\to\manual.docx" `
   --output outputs\manual_products.xlsx `
-  --style-reference "C:\path\to\大龙产品可上架版last.xlsx" `
+  --style-reference "C:\path\to\approved_upload_style.xlsx" `
   --style-sheet "Pipetting Series"
 ```
 
-When `--style-reference` is provided, the output copies the column widths, row heights, fills, borders, wrapping and table behavior from the `Pipetting Series` sheet.
+When `--style-reference` is provided, the output copies the column widths, row heights, fills, borders, wrapping and table behavior from the reference sheet.
 
 Without a reference workbook, the generator uses the built-in light-blue banded upload-table format.
 
@@ -93,19 +95,12 @@ Without a reference workbook, the generator uses the built-in light-blue banded 
 Open this repository in Codex and provide a product manual. Ask:
 
 ```text
-按 AGENTS.md 的标准流程生成最终可上传 Excel。HTML 模板和 Excel 格式都要按 Pipetting Series 标准。
+Follow AGENTS.md and generate the final upload-ready Excel. Use the fixed Atomfair/Pipetting Series HTML template and Excel format.
 ```
 
-Codex should:
+Codex should read the manual, extract all products and accessories, split product rows by specification, generate full-English HTML, export Excel in the fixed column order, and verify the result against the source manual.
 
-- Read the manual carefully.
-- Extract products, variants, specs and accessories.
-- Split different specifications into separate rows.
-- Generate full-English HTML.
-- Export Excel in the fixed column order.
-- Verify the result before delivery.
-
-For image-only manuals or PDFs/screenshots where text extraction misses tables, Codex should visually inspect/OCR the pages and manually verify the product rows instead of guessing.
+For image-only manuals or screenshots where text extraction misses tables, use visual/OCR review and manual verification instead of guessing.
 
 ## Output Files
 
@@ -116,7 +111,7 @@ outputs/products.xlsx
 outputs/products_records.json
 ```
 
-`products_records.json` contains the generated row data for audit and reruns.
+`products_records.json` contains generated row data for audit and reruns.
 
 ## Verification
 
@@ -125,7 +120,8 @@ The generator checks:
 - HTML has no Chinese characters.
 - English fields have no Chinese characters.
 - Model numbers are unique.
-- Blank upload columns are blank.
+- Required blank columns are blank.
 - Forbidden internal workflow phrases do not appear in Product Overview or HTML.
+- Forbidden unrelated product-category pollution terms do not appear in generated backend or HTML text.
 
 Manual review is still required before upload. Always compare the output against the source manual to confirm every specification, range, dimension, accessory and ordering row is covered.
